@@ -1,0 +1,12 @@
+i2c1
+sensor scl->PB8
+sensor sda->PB9
+addr	  ->GND
+
+i2c4
+dispaly scl->PF14
+dispaly sda->PF15
+
+W GPIO, w zakładce I2C ustawić pull-up dla PF14 i PF15.
+
+WYŁĄCZYC ETHERNET!!!!!
