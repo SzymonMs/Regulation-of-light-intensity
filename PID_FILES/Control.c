@@ -5,18 +5,8 @@
  *      Author: szymo
  */
 
-#include "main.h"
 #include "Control.h"
-#include "main.h"
-#include "i2c.h"
-#include "tim.h"
-#include "usart.h"
-#include "usb_otg.h"
-#include "gpio.h"
-extern luxint;
-extern set_value;
-extern duty;
-void PID_regulator(struct PID pid)
+void PID_regulator(struct PID pid,float luxint,float set_value,uint16_t duty)
 {
 	luxint=bh1750_read();
 	float error = set_value - luxint;
