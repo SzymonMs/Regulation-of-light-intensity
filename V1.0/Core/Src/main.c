@@ -31,7 +31,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "bh1750.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,9 +54,27 @@
 
 /* USER CODE BEGIN PV */
 struct lcd_disp disp;
-float luxint = 0.0f;
+BH1750_HandleTypeDef sensor = { .I2C = &hi2c1, .Address = BH1750_ADDRESS_L,
+		.Timeout = 0xffff };
 
-FILE *fp;
+//nastawy PID
+float Kp = 0.089;
+float Ki = 1.5;
+float Td = -0.0006;
+float N = 189.0;
+//warunki początkowe
+float prev_int = 0.0f;
+float prev_error = 0.0f;
+float prev_d = 0.0;
+
+//zegar na 100hz
+float Tp = 0.01f;
+
+
+float set_value = 600.0;
+float luxint = 0.0f;
+uint16_t duty;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,115 +85,90 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-BH1750_HandleTypeDef sensor = { .I2C = &hi2c1, .Address = BH1750_ADDRESS_L,
-		.Timeout = 0xffff };
-float bh1750_read()
-{
-        HAL_StatusTypeDef status=HAL_ERROR;
-        uint8_t data[2];
-        status=HAL_I2C_Master_Receive(&hi2c1,(0x23 << 1), data, 2, 100);
-        float lux=((data[0] << 8) | data[1])/ 1.2;
-        return lux;
-
-
-}
 
 
 
-float Kp=0.89;
-float Ki=1;
-float Td=-0.0006;
-float N=189.0;
-float prev_int = 0.0f;
-float prev_error = 0.0f;
-float prev_d=0.0;
-float Tp = 0.1f;
-
-float set_value=50.0;
 
 
-uint16_t duty;
+void PID() {
 
-void PID()
-{
-	luxint=bh1750_read();
+	luxint = BH1750_ReadIlluminance_lux(&sensor);
 	float error = set_value - luxint;
+
+
 	float u;
-
+	//P
 	float u_P = Kp * error;
-
+	//I
 	float integral = (error + prev_error + prev_int);
-	float u_I = Ki * Tp/2 * integral;
+	float u_I = Ki * Tp / 2 * integral;
 	prev_int = integral;
-
-	float derivative=(error-prev_error)/Tp;
+	//D
+	float derivative = (error - prev_error) / Tp;
 	//float u_D=Td*derivative;
-	float u_D=Td*N/(1+N*(1/derivative));
+	float u_D = Td * N / (1 + N * (1 / derivative));
 	prev_error = error;
 
-	u = u_P + u_I+u_D;
+	u = u_P + u_I + u_D;
 
-	duty = (uint16_t)u;
+	duty = (uint16_t) u;
 
-	if (duty>999)
-	{
+	if (duty > 999) {
 		duty = 999;
 	}
+
 	htim3.Instance->CCR1 = duty;
+
 }
 
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
-	if (htim->Instance == TIM4)
-	{
+	if (htim->Instance == TIM4) {
 		//luxint = BH1750_ReadIlluminance_lux(&sensor);
-
 		PID();
 
 	}
 }
 
-
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
-  /* USER CODE BEGIN 1 */
+ * @brief  The application entry point.
+ * @retval int
+ */
+int main(void) {
+	/* USER CODE BEGIN 1 */
 
-  /* USER CODE END 1 */
+	/* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+	/* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
-  /* USER CODE BEGIN Init */
+	/* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+	/* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	/* Configure the system clock */
+	SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+	/* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+	/* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_USART3_UART_Init();
-  MX_USB_OTG_FS_PCD_Init();
-  MX_I2C1_Init();
-  MX_I2C4_Init();
-  MX_TIM3_Init();
-  MX_TIM4_Init();
-  /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start_IT(&htim4);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_USART3_UART_Init();
+	MX_USB_OTG_FS_PCD_Init();
+	MX_I2C1_Init();
+	MX_I2C4_Init();
+	MX_TIM3_Init();
+	MX_TIM4_Init();
+	/* USER CODE BEGIN 2 */
+	HAL_TIM_Base_Start_IT(&htim4);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
 	BH1750_Init(&sensor);
 
@@ -181,88 +176,89 @@ int main(void)
 	disp.bl = true;
 	lcd_init(&disp);
 
-	lcd_display(&disp);
-	luxint = BH1750_ReadIlluminance_lux(&sensor);
+
+
 	//HAL_Delay(1000);
-	  //__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1,1000);
-  /* USER CODE END 2 */
+	// __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1,1000);
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
+	/* USER CODE END 2 */
+
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
 	while (1) {
-		//odczyt czujnika
-//		char str[13];
-//		luxint = BH1750_ReadIlluminance_lux(&sensor);
-//		sprintf(str, "%d lux \r\n", luxint);
-//		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str), 100);
 
-		//wysłanie odczytu na czujnik
-		sprintf((char*) disp.s_line, "Read[lux]= %f", luxint);
+//		if(HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin))
+//		{
+//			set_value=set_value+100;
+//		}
+
+		//wysłanie odczytu na LCD
+		uint16_t f = set_value; //wartosc zadana i wypelnienie w %
+		sprintf((char*) disp.f_line, "Set=%d PWM %d%%", f, duty / 10);
+
+		uint16_t s = luxint; // odczyt czujnika
+		sprintf((char*) disp.s_line, "Read[lux]= %d", s);
 		lcd_display(&disp);
 		HAL_Delay(1000);
 
-    /* USER CODE END WHILE */
+		/* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+		/* USER CODE BEGIN 3 */
 	}
-  /* USER CODE END 3 */
+	/* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+ * @brief System Clock Configuration
+ * @retval None
+ */
+void SystemClock_Config(void) {
+	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+	RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = { 0 };
 
-  /** Configure LSE Drive Capability
-  */
-  HAL_PWR_EnableBkUpAccess();
-  /** Configure the main internal regulator output voltage
-  */
-  __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 4;
-  RCC_OscInitStruct.PLL.PLLN = 72;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 3;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+	/** Configure LSE Drive Capability
+	 */
+	HAL_PWR_EnableBkUpAccess();
+	/** Configure the main internal regulator output voltage
+	 */
+	__HAL_RCC_PWR_CLK_ENABLE();
+	__HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
+	/** Initializes the RCC Oscillators according to the specified parameters
+	 * in the RCC_OscInitTypeDef structure.
+	 */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+	RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+	RCC_OscInitStruct.PLL.PLLM = 4;
+	RCC_OscInitStruct.PLL.PLLN = 72;
+	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+	RCC_OscInitStruct.PLL.PLLQ = 3;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+		Error_Handler();
+	}
+	/** Initializes the CPU, AHB and APB buses clocks
+	 */
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3|RCC_PERIPHCLK_I2C1
-                              |RCC_PERIPHCLK_I2C4|RCC_PERIPHCLK_CLK48;
-  PeriphClkInitStruct.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
-  PeriphClkInitStruct.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
-  PeriphClkInitStruct.I2c4ClockSelection = RCC_I2C4CLKSOURCE_PCLK1;
-  PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48SOURCE_PLL;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
+		Error_Handler();
+	}
+	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3
+			| RCC_PERIPHCLK_I2C1 | RCC_PERIPHCLK_I2C4 | RCC_PERIPHCLK_CLK48;
+	PeriphClkInitStruct.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
+	PeriphClkInitStruct.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
+	PeriphClkInitStruct.I2c4ClockSelection = RCC_I2C4CLKSOURCE_PCLK1;
+	PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48SOURCE_PLL;
+	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
+		Error_Handler();
+	}
 }
 
 /* USER CODE BEGIN 4 */
@@ -270,17 +266,16 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
-void Error_Handler(void)
-{
-  /* USER CODE BEGIN Error_Handler_Debug */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
+void Error_Handler(void) {
+	/* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
 	__disable_irq();
 	while (1) {
 	}
-  /* USER CODE END Error_Handler_Debug */
+	/* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
