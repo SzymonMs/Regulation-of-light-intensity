@@ -2,5 +2,7 @@
 
 # Autorzy:
 Szymon Murawski
+
 Marek Frąckowiak
+
 Jan Sibilski
