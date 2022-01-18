@@ -7,6 +7,9 @@ Marek Frąckowiak
 
 Jan Sibilski
 
+# Cel:
+Regulacja natężenia światła emitowanego przez LED przy pomocy regulatora PID.
+
 # Zbudowany układ:
 
 <p align="center">
