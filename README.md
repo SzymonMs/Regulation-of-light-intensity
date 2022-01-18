@@ -10,4 +10,4 @@ Jan Sibilski
 # Zbudowany układ:
 
 <p align="center">
-<img width="480" height="236" src="https://github.com/SzymonMs/SM_LAB_2021-2022/blob/main/Wykonanie.jpg">
+<img width="416" height="312" src="https://github.com/SzymonMs/SM_LAB_2021-2022/blob/main/Zdjęcia/IMG_20220118_101128.jpg">
