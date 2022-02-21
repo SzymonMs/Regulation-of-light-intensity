@@ -1,5 +1,0 @@
-#include "Control.h"
-
-struct PID pid={.Kp=0.089,.Ki=1,.Td=-0.0006,.N=189.0,.prev_int=0,.prev_error=0.0,.prev_d=0.0,.Tp=0.01};
-
-PID_regulator(pid,luxint,set_value,duty);
